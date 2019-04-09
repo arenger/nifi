@@ -20,7 +20,7 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
-import org.apache.nifi.processors.standard.SplitLargeJson;
+import org.apache.nifi.processors.standard.SplitJson;
 
 import javax.json.Json;
 import javax.json.stream.JsonGenerator;
@@ -99,7 +99,7 @@ public class JsonFragmentWriter {
         attributes.put(SEGMENT_ORIGINAL_FILENAME.key(), original.getAttribute(CoreAttributes.FILENAME.key()));
     }
 
-    private void newFragment(SplitLargeJson.JsonParserView view) {
+    private void newFragment(SplitJson.JsonParserView view) {
         fragment = processSession.create(original);
         outputStream = processSession.write(fragment);
         generator = factory.createGenerator(outputStream);
@@ -121,7 +121,7 @@ public class JsonFragmentWriter {
         processSession.transfer(processSession.putAllAttributes(fragment, attributes), relSplit);
     }
 
-    private void write(Event e, SplitLargeJson.JsonParserView view) {
+    private void write(Event e, SplitJson.JsonParserView view) {
         switch (e) {
             case START_ARRAY:
                 generator.writeStartArray();
@@ -158,7 +158,7 @@ public class JsonFragmentWriter {
         }
     }
 
-    public void filterEvent(BoolPair section, Event e, SplitLargeJson.JsonParserView view, int stackDepth) throws IOException {
+    public void filterEvent(BoolPair section, Event e, SplitJson.JsonParserView view, int stackDepth) throws IOException {
         switch (mode) {
             case CONTIGUOUS:
                 filterContiguous(section, e, view, stackDepth);
@@ -171,7 +171,7 @@ public class JsonFragmentWriter {
         }
     }
 
-    private void filterDisjoint(BoolPair section, Event e, SplitLargeJson.JsonParserView view) throws IOException {
+    private void filterDisjoint(BoolPair section, Event e, SplitJson.JsonParserView view) throws IOException {
         if (section.waxing()) {
             if (e == Event.KEY_NAME) {
                 context = Event.START_OBJECT;
@@ -195,7 +195,7 @@ public class JsonFragmentWriter {
         }
     }
 
-    private void writeDisjointSingle(Event e, SplitLargeJson.JsonParserView view) throws IOException {
+    private void writeDisjointSingle(Event e, SplitJson.JsonParserView view) throws IOException {
         addContext = true;
         newFragment(view);
         if (contextName != null) {
@@ -206,7 +206,7 @@ public class JsonFragmentWriter {
         addContext = false;
     }
 
-    private void filterContiguous(BoolPair section, Event e, SplitLargeJson.JsonParserView view, int stackDepth)
+    private void filterContiguous(BoolPair section, Event e, SplitJson.JsonParserView view, int stackDepth)
             throws IOException {
         if (section.full()) {
             if (context == null) {

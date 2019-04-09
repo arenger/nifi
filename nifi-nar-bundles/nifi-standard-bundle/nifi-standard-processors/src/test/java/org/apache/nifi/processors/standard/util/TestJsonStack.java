@@ -16,7 +16,7 @@
  */
 package org.apache.nifi.processors.standard.util;
 
-import org.apache.nifi.processors.standard.SplitLargeJson;
+import org.apache.nifi.processors.standard.SplitJson;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -29,7 +29,7 @@ public class TestJsonStack {
     public void stackPrint() {
         JsonStack stack = new JsonStack();
 
-        SplitLargeJson.JsonParserView view = Mockito.mock(SplitLargeJson.JsonParserView.class);
+        SplitJson.JsonParserView view = Mockito.mock(SplitJson.JsonParserView.class);
         stack.receive(JsonParser.Event.START_ARRAY, view);
         stack.receive(JsonParser.Event.START_OBJECT, view);
 
@@ -43,7 +43,7 @@ public class TestJsonStack {
     public void startsWith() {
         JsonStack stack = new JsonStack();
 
-        SplitLargeJson.JsonParserView view = Mockito.mock(SplitLargeJson.JsonParserView.class);
+        SplitJson.JsonParserView view = Mockito.mock(SplitJson.JsonParserView.class);
         stack.receive(JsonParser.Event.START_ARRAY, view);
         stack.receive(JsonParser.Event.START_OBJECT, view);
 

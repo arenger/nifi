@@ -16,7 +16,7 @@
  */
 package org.apache.nifi.processors.standard.util;
 
-import org.apache.nifi.processors.standard.SplitLargeJson;
+import org.apache.nifi.processors.standard.SplitJson;
 
 import javax.json.stream.JsonParser.Event;
 import java.util.ArrayDeque;
@@ -24,7 +24,7 @@ import java.util.Iterator;
 
 public class JsonStack extends ArrayDeque<SimpleJsonPath.Element> {
 
-    public void receive(Event e, SplitLargeJson.JsonParserView parserView) {
+    public void receive(Event e, SplitJson.JsonParserView parserView) {
         switch (e) {
             case KEY_NAME:
                 add(new SimpleJsonPath.NamedElement(parserView.getString()));
