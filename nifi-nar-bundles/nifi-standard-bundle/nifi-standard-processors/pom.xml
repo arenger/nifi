@@ -354,14 +354,20 @@
             <version>1.10.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>javax.json</groupId>
-            <artifactId>javax.json-api</artifactId>
-            <version>1.1</version>
+            <groupId>com.github.jsurfer</groupId>
+            <artifactId>jsurfer-core</artifactId>
+            <version>1.4.3</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.antlr</groupId>
+                    <artifactId>antlr4-runtime</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.glassfish</groupId>
-            <artifactId>javax.json</artifactId>
-            <version>1.1</version>
+            <groupId>com.github.jsurfer</groupId>
+            <artifactId>jsurfer-jackson</artifactId>
+            <version>1.4.3</version>
         </dependency>
         <dependency>
             <groupId>org.apache.nifi</groupId>
