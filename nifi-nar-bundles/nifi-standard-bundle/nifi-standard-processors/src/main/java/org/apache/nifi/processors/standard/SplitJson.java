@@ -235,6 +235,11 @@ public class SplitJson extends AbstractJsonPathProcessor {
             processSession.transfer(processSession.putAllAttributes(split, attributes), REL_SPLIT);
         }
 
+        Runtime rt = Runtime.getRuntime();
+        rt.gc();
+        logger.info(String.format("Memory used: %.3f",
+                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
+
         original = copyAttributesToOriginal(processSession, original, fragmentId, resultList.size());
         processSession.transfer(original, REL_ORIGINAL);
         logger.info("Split {} into {} FlowFiles", new Object[]{original, resultList.size()});

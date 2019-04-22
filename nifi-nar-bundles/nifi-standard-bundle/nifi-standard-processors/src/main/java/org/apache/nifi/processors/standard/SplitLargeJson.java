@@ -201,6 +201,11 @@ public class SplitLargeJson extends AbstractProcessor {
             return;
         }
 
+        Runtime rt = Runtime.getRuntime();
+        rt.gc();
+        logger.info(String.format("Memory used: %.3f",
+                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
+
         logger.info("Split {} into {} FlowFile(s)", new Object[]{original, fragmentWriter.getCount()});
         original = copyAttributesToOriginal(processSession, original, groupId, fragmentWriter.getCount());
 
