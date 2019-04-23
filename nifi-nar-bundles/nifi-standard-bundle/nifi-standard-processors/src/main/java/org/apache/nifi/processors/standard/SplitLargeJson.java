@@ -169,6 +169,10 @@ public class SplitLargeJson extends AbstractProcessor {
             }
             attributes.put(FRAGMENT_INDEX.key(), String.valueOf(fragmentIndex++));
             processSession.transfer(processSession.putAllAttributes(fragment, attributes), relSplit);
+            Runtime rt = Runtime.getRuntime();
+            rt.gc();
+            logger.info(String.format("Memory in use (onValue): %.3f",
+                    (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
         }
     }
 
@@ -185,26 +189,30 @@ public class SplitLargeJson extends AbstractProcessor {
         JsonFragmentWriter fragmentWriter =
             new JsonFragmentWriter(processSession, original, REL_SPLIT, groupId, logger);
 
+        Runtime rt = Runtime.getRuntime();
+
         try (InputStream is = processSession.read(original)) {
             JsonSurfer surfer = JsonSurferJackson.INSTANCE;
             surfer.configBuilder().bind(
                     processContext.getProperty(JSON_PATH_EXPRESSION).getValue(), fragmentWriter).buildAndSurf(is);
+            rt.gc();
+            logger.info(String.format("Memory in use (after surf): %.3f",
+                    (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
         } catch (Exception e) {
             logger.error("Problems with FlowFile {}: {}", new Object[]{original, e.getMessage()});
             processSession.transfer(original, REL_FAILURE);
             return;
         }
 
+        rt.gc();
+        logger.info(String.format("Memory used (out of scope): %.3f",
+                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
+
         if (fragmentWriter.getCount() == 0) {
             logger.error("No object or array was found at the specified json path");
             processSession.transfer(original, REL_FAILURE);
             return;
         }
-
-        Runtime rt = Runtime.getRuntime();
-        rt.gc();
-        logger.info(String.format("Memory used: %.3f",
-                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
 
         logger.info("Split {} into {} FlowFile(s)", new Object[]{original, fragmentWriter.getCount()});
         original = copyAttributesToOriginal(processSession, original, groupId, fragmentWriter.getCount());
