@@ -85,10 +85,10 @@ import static org.apache.nifi.flowfile.attributes.FragmentAttributes.copyAttribu
                 description = "The number of split FlowFiles generated from the parent FlowFile"),
         @WritesAttribute(attribute = "segment.original.filename ", description = "The filename of the parent FlowFile")
 })
-@SeeAlso(SplitLargeJson.class)
+@SeeAlso(SelectJson.class)
 @SystemResourceConsideration(resource = SystemResource.MEMORY, description = "The entirety of the FlowFile's content (as a JsonNode object) is read into memory, " +
         "in addition to all of the generated FlowFiles representing the split JSON.  If the JSON documents to be " +
-        "split are large, then the SplitLargeJson processor should be considered in order to avoid excessive " +
+        "split are large, then the SelectJson processor should be considered in order to avoid excessive " +
         "memory usage.  If a complex JSON Path is required and the JSON documents are large, then a two-phase " +
         "approach may be necessary.")
 public class SplitJson extends AbstractJsonPathProcessor {
@@ -234,11 +234,6 @@ public class SplitJson extends AbstractJsonPathProcessor {
             attributes.put(FRAGMENT_INDEX.key(), Integer.toString(i));
             processSession.transfer(processSession.putAllAttributes(split, attributes), REL_SPLIT);
         }
-
-        Runtime rt = Runtime.getRuntime();
-        rt.gc();
-        logger.info(String.format("Memory used: %.3f",
-                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
 
         original = copyAttributesToOriginal(processSession, original, fragmentId, resultList.size());
         processSession.transfer(original, REL_ORIGINAL);

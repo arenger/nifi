@@ -334,6 +334,10 @@ public class EvaluateJsonPath extends AbstractJsonPathProcessor {
                     processSession.getProvenanceReporter().modifyContent(flowFile, "Replaced content with result of expression " + jsonPathExp.getPath());
                 }
             }
+            Runtime rt = Runtime.getRuntime();
+            rt.gc();
+            logger.info(String.format("Memory used (out of scope): %.3f",
+                    (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
 
             // jsonPathResults map will be empty if this is false
             if (destinationIsAttribute) {

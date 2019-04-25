@@ -29,6 +29,7 @@ import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.ValidationContext;
 import org.apache.nifi.components.ValidationResult;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.logging.ComponentLog;
@@ -38,10 +39,13 @@ import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.jsfr.json.JacksonParser;
 import org.jsfr.json.JsonPathListener;
 import org.jsfr.json.JsonSurfer;
-import org.jsfr.json.JsonSurferJackson;
 import org.jsfr.json.ParsingContext;
+import org.jsfr.json.compiler.JsonPathCompiler;
+import org.jsfr.json.path.JsonPath;
+import org.jsfr.json.provider.JacksonProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -78,7 +82,7 @@ import static org.apache.nifi.flowfile.attributes.FragmentAttributes.copyAttribu
         @WritesAttribute(attribute = "segment.original.filename ", description = "The filename of the parent FlowFile")
 })
 @SeeAlso(SplitJson.class)
-public class SplitLargeJson extends AbstractProcessor {
+public class SelectJson extends AbstractProcessor {
 
     public static final PropertyDescriptor JSON_PATH_EXPRESSION = new PropertyDescriptor.Builder()
             .name("JsonPath Expression")
@@ -92,8 +96,8 @@ public class SplitLargeJson extends AbstractProcessor {
             .description("The original FlowFile that was split into segments. If the FlowFile fails processing, " +
                     "nothing will be sent to this relationship")
             .build();
-    public static final Relationship REL_SPLIT = new Relationship.Builder()
-            .name("split")
+    public static final Relationship REL_SELECTED = new Relationship.Builder()
+            .name("selected")
             .description("All segments of the original FlowFile will be routed to this relationship")
             .build();
     public static final Relationship REL_FAILURE = new Relationship.Builder()
@@ -104,6 +108,21 @@ public class SplitLargeJson extends AbstractProcessor {
 
     private List<PropertyDescriptor> properties;
     private Set<Relationship> relationships;
+    private volatile JsonPath jsonPath;
+
+    @Override
+    protected Collection<ValidationResult> customValidate(ValidationContext validationContext) {
+        String value = validationContext.getProperty(JSON_PATH_EXPRESSION).getValue();
+        try {
+            jsonPath = JsonPathCompiler.compile(value);
+        } catch (Exception e) {
+            ValidationResult result = new ValidationResult.Builder().subject(JSON_PATH_EXPRESSION.getName())
+                    .valid(false).explanation(
+                    "the specified JSON path is either invalid or not supported by this processor").build();
+            return Collections.singleton(result);
+        }
+        return new ArrayList<>();
+    }
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
@@ -113,7 +132,7 @@ public class SplitLargeJson extends AbstractProcessor {
 
         final Set<Relationship> relationships = new HashSet<>();
         relationships.add(REL_ORIGINAL);
-        relationships.add(REL_SPLIT);
+        relationships.add(REL_SELECTED);
         relationships.add(REL_FAILURE);
         this.relationships = Collections.unmodifiableSet(relationships);
     }
@@ -126,14 +145,6 @@ public class SplitLargeJson extends AbstractProcessor {
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         return properties;
-    }
-
-    @Override
-    protected Collection<ValidationResult> customValidate(ValidationContext validationContext) {
-        String value = validationContext.getProperty(JSON_PATH_EXPRESSION).getValue();
-        ValidationResult.Builder vrb = new ValidationResult.Builder();
-            vrb.valid(true);
-        return Collections.singleton(vrb.build());
     }
 
     private class JsonFragmentWriter implements JsonPathListener {
@@ -163,6 +174,7 @@ public class SplitLargeJson extends AbstractProcessor {
         public void onValue(Object value, ParsingContext context) {
             FlowFile fragment = processSession.create(original);
             try (OutputStream out = processSession.write(fragment)) {
+System.out.println(value);
                 out.write(value.toString().getBytes(Charset.defaultCharset()));
             } catch (IOException e) {
                 logger.error("Problem writing to flowfile", e);
@@ -187,14 +199,14 @@ public class SplitLargeJson extends AbstractProcessor {
 
         String groupId = UUID.randomUUID().toString();
         JsonFragmentWriter fragmentWriter =
-            new JsonFragmentWriter(processSession, original, REL_SPLIT, groupId, logger);
+            new JsonFragmentWriter(processSession, original, REL_SELECTED, groupId, logger);
 
         Runtime rt = Runtime.getRuntime();
 
         try (InputStream is = processSession.read(original)) {
-            JsonSurfer surfer = JsonSurferJackson.INSTANCE;
-            surfer.configBuilder().bind(
-                    processContext.getProperty(JSON_PATH_EXPRESSION).getValue(), fragmentWriter).buildAndSurf(is);
+            JsonSurfer surfer = new JsonSurfer(JacksonParser.INSTANCE, JacksonProvider.INSTANCE);
+            surfer.configBuilder().bind(jsonPath, fragmentWriter).buildAndSurf(is);
+
             rt.gc();
             logger.info(String.format("Memory in use (after surf): %.3f",
                     (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
