@@ -73,9 +73,7 @@ import static org.apache.nifi.flowfile.attributes.FragmentAttributes.copyAttribu
 @CapabilityDescription("Splits a JSON File into multiple, separate FlowFiles for an array element specified by a JsonPath expression. "
         + "Each generated FlowFile is comprised of an element of the specified array and transferred to relationship 'split,' "
         + "with the original file transferred to the 'original' relationship. If the specified JsonPath is not found or "
-        + "does not evaluate to an array element, the original file is routed to 'failure' and no files are generated. "
-        + "If a designated object in the JSON document is to be split into its key-value pairs, the SplitLargeJson "
-        + "processor can be used. This processor can split arrays and supports the full JSON Path specification.")
+        + "does not evaluate to an array element, the original file is routed to 'failure' and no files are generated.")
 @WritesAttributes({
         @WritesAttribute(attribute = "fragment.identifier",
                 description = "All split FlowFiles produced from the same parent FlowFile will have the same randomly generated UUID added for this attribute"),
