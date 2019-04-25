@@ -357,12 +357,6 @@
             <groupId>com.github.jsurfer</groupId>
             <artifactId>jsurfer-core</artifactId>
             <version>1.4.3</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.antlr</groupId>
-                    <artifactId>antlr4-runtime</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.github.jsurfer</groupId>

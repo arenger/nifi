@@ -29,7 +29,6 @@ import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.ValidationContext;
 import org.apache.nifi.components.ValidationResult;
-import org.apache.nifi.components.Validator;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.logging.ComponentLog;
@@ -69,9 +68,16 @@ import static org.apache.nifi.flowfile.attributes.FragmentAttributes.copyAttribu
 @EventDriven
 @SideEffectFree
 @SupportsBatching
-@Tags({"json", "split", "jsonpath"})
+@Tags({"json", "evaluate", "jsonpath"})
 @InputRequirement(Requirement.INPUT_REQUIRED)
-@CapabilityDescription("TBD")
+@CapabilityDescription("Uses a JSON Path expression to select a portion (or portions) of an incoming JSON document " +
+        "and send it/them to outgoing FlowFile(s). The matched portion(s) will be sent to the 'selected' relation. " +
+        "If no portion of the incoming FlowFile is selected by the specified JSON Path, the incoming file will be " +
+        "sent to the 'failure' relation. The incoming JSON is processed in streaming fashion so as to avoid loading " +
+        "the entire document into memory. The amount of memory used by this processor will depend on the size of the " +
+        "selected JSON, but is independent of the size of the incoming document size. Lastly, note that JSON Paths " +
+        "containing paths after a filter clause are not supported.  For example, a path like " +
+        "'$.store.book[?(@.price < 10)]' is supported, but not '$.store.book[?(@.price < 10)].price'.")
 @WritesAttributes({
         @WritesAttribute(attribute = "fragment.identifier",
                 description = "All FlowFiles produced from the same parent FlowFile will have the same " +
@@ -81,19 +87,19 @@ import static org.apache.nifi.flowfile.attributes.FragmentAttributes.copyAttribu
                         "created from a single parent FlowFile"),
         @WritesAttribute(attribute = "segment.original.filename ", description = "The filename of the parent FlowFile")
 })
-@SeeAlso(SplitJson.class)
+@SeeAlso(EvaluateJsonPath.class)
 public class SelectJson extends AbstractProcessor {
 
     public static final PropertyDescriptor JSON_PATH_EXPRESSION = new PropertyDescriptor.Builder()
             .name("JsonPath Expression")
-            .description("A JsonPath expression that indicates the array element to split into JSON/scalar fragments.")
+            .description("A JsonPath expression to be selected from the incoming FlowFile.")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR) // Full validation occurs in #customValidate
             .required(true)
             .build();
 
     public static final Relationship REL_ORIGINAL = new Relationship.Builder()
             .name("original")
-            .description("The original FlowFile that was split into segments. If the FlowFile fails processing, " +
+            .description("The original FlowFile. If the FlowFile fails processing, " +
                     "nothing will be sent to this relationship")
             .build();
     public static final Relationship REL_SELECTED = new Relationship.Builder()
@@ -151,7 +157,7 @@ public class SelectJson extends AbstractProcessor {
 
         private final ProcessSession processSession;
         private final FlowFile original;
-        private final Relationship relSplit;
+        private final Relationship relSelected;
         private int fragmentIndex;
         private ComponentLog logger;
         private Map<String, String> attributes = new HashMap<>();
@@ -160,11 +166,11 @@ public class SelectJson extends AbstractProcessor {
             return fragmentIndex;
         }
 
-        public JsonFragmentWriter(ProcessSession processSession, FlowFile original, Relationship relSplit,
+        public JsonFragmentWriter(ProcessSession processSession, FlowFile original, Relationship relSelected,
                                   String groupId, ComponentLog logger){
             this.processSession = processSession;
             this.original = original;
-            this.relSplit = relSplit;
+            this.relSelected = relSelected;
             this.logger = logger;
             attributes.put(FRAGMENT_ID.key(), groupId);
             attributes.put(SEGMENT_ORIGINAL_FILENAME.key(), original.getAttribute(CoreAttributes.FILENAME.key()));
@@ -174,17 +180,12 @@ public class SelectJson extends AbstractProcessor {
         public void onValue(Object value, ParsingContext context) {
             FlowFile fragment = processSession.create(original);
             try (OutputStream out = processSession.write(fragment)) {
-System.out.println(value);
                 out.write(value.toString().getBytes(Charset.defaultCharset()));
             } catch (IOException e) {
                 logger.error("Problem writing to flowfile", e);
             }
             attributes.put(FRAGMENT_INDEX.key(), String.valueOf(fragmentIndex++));
-            processSession.transfer(processSession.putAllAttributes(fragment, attributes), relSplit);
-            Runtime rt = Runtime.getRuntime();
-            rt.gc();
-            logger.info(String.format("Memory in use (onValue): %.3f",
-                    (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
+            processSession.transfer(processSession.putAllAttributes(fragment, attributes), relSelected);
         }
     }
 
@@ -201,24 +202,14 @@ System.out.println(value);
         JsonFragmentWriter fragmentWriter =
             new JsonFragmentWriter(processSession, original, REL_SELECTED, groupId, logger);
 
-        Runtime rt = Runtime.getRuntime();
-
         try (InputStream is = processSession.read(original)) {
             JsonSurfer surfer = new JsonSurfer(JacksonParser.INSTANCE, JacksonProvider.INSTANCE);
             surfer.configBuilder().bind(jsonPath, fragmentWriter).buildAndSurf(is);
-
-            rt.gc();
-            logger.info(String.format("Memory in use (after surf): %.3f",
-                    (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
         } catch (Exception e) {
             logger.error("Problems with FlowFile {}: {}", new Object[]{original, e.getMessage()});
             processSession.transfer(original, REL_FAILURE);
             return;
         }
-
-        rt.gc();
-        logger.info(String.format("Memory used (out of scope): %.3f",
-                (double)(rt.totalMemory() - rt.freeMemory())/(1024 * 1024)));
 
         if (fragmentWriter.getCount() == 0) {
             logger.error("No object or array was found at the specified json path");
@@ -226,7 +217,7 @@ System.out.println(value);
             return;
         }
 
-        logger.info("Split {} into {} FlowFile(s)", new Object[]{original, fragmentWriter.getCount()});
+        logger.info("Selected {} portion(s) from FlowFile {}", new Object[]{fragmentWriter.getCount(), original});
         original = copyAttributesToOriginal(processSession, original, groupId, fragmentWriter.getCount());
 
         processSession.transfer(original, REL_ORIGINAL);
